@@ -1,0 +1,60 @@
+version: "2"
+
+run:
+  timeout: 5m
+  go: "1.25"
+
+linters:
+  enable:
+    - govet
+    - ineffassign
+    - staticcheck      # includes gosimple now
+    - unused
+    - misspell
+    - unconvert
+    - revive
+    - gosec
+    - copyloopvar     # Loop variable copying detection
+    - nilerr
+    - unparam
+    - wastedassign
+  disable:
+    - errcheck        # Disable errcheck - not all return values need checking
+
+  settings:
+    revive:
+      # Enable only essential revive rules
+      rules:
+        - name: exported
+          disabled: true
+        - name: unreachable-code
+          disabled: false
+        - name: unused-parameter
+          disabled: false
+
+    gosec:
+      # Allow specific security issues that are acceptable
+      excludes:
+        - G104  # Errors unhandled (covered by errcheck which we disabled)
+
+  exclusions:
+    rules:
+      # Allow unchecked errors in test files for setup/cleanup code
+      - path: "_test\\.go"
+        linters:
+          - gosec
+          - errcheck
+      # Allow unchecked errors in performance test files
+      - path: "performance_test\\.go"
+        linters:
+          - gosec
+          - errcheck
+    # Don't hide multiple issues on the same line
+    max-same-issues: 0
+    # Don't hide issues in generated files
+    presets: [ ]
+
+formatters:
+  enable:
+    - gofmt
+    - goimports

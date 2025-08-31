@@ -1,0 +1,51 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+coverage.out
+coverage.html
+
+# Dependency directories
+vendor/
+
+# Build directory
+build/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Application specific binaries (only in root)
+/most-active-cookie
+/most-active-cookie-test
+
+# Experimental/development files
+simple.go
+
+# Temporary files
+*.tmp
+*.temp
+
+# Log files
+*.log
+
+# Testing artifacts
+*.cover
+*.prof
+
+# Generated mocks (mockery)
+*_mock.go

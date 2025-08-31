@@ -1,0 +1,89 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version-file: 'go.mod'
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Generate mocks
+        run: make mocks
+
+      - name: Lint
+        run: make lint
+
+      - name: Test
+        run: make test
+
+      - name: Publish Go module
+        run: |
+          # Extract version from tag
+          VERSION=${GITHUB_REF#refs/tags/}
+          echo "📦 Publishing Go module version: $VERSION"
+          
+          # Set environment variable for make release
+          export GITHUB_REF_NAME=$VERSION
+          
+          # Publish module to Go proxy
+          make release
+          
+          echo "✅ Module published: go get github.com/mfenderov/most-active-cookie@$VERSION"
+          echo "✅ CLI install: go install github.com/mfenderov/most-active-cookie/cmd/most-active-cookie@$VERSION"
+
+      - name: Build cross-platform binaries
+        run: |
+          # Extract version from tag
+          VERSION=${GITHUB_REF#refs/tags/}
+          echo "🔨 Building cross-platform binaries version: $VERSION"
+          
+          # Build for multiple platforms
+          mkdir -p build/release
+          
+          # Linux amd64
+          GOOS=linux GOARCH=amd64 go build -ldflags "-s -w -X main.version=$VERSION" -o build/release/most-active-cookie-linux-amd64 ./cmd/most-active-cookie
+          
+          # Linux arm64
+          GOOS=linux GOARCH=arm64 go build -ldflags "-s -w -X main.version=$VERSION" -o build/release/most-active-cookie-linux-arm64 ./cmd/most-active-cookie
+          
+          # macOS amd64
+          GOOS=darwin GOARCH=amd64 go build -ldflags "-s -w -X main.version=$VERSION" -o build/release/most-active-cookie-darwin-amd64 ./cmd/most-active-cookie
+          
+          # macOS arm64 (Apple Silicon)
+          GOOS=darwin GOARCH=arm64 go build -ldflags "-s -w -X main.version=$VERSION" -o build/release/most-active-cookie-darwin-arm64 ./cmd/most-active-cookie
+          
+          # Windows amd64
+          GOOS=windows GOARCH=amd64 go build -ldflags "-s -w -X main.version=$VERSION" -o build/release/most-active-cookie-windows-amd64.exe ./cmd/most-active-cookie
+          
+          # Create checksums
+          cd build/release && sha256sum * > checksums.txt
+          
+          echo "✅ Built $(ls build/release/ | wc -l) artifacts"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            build/release/*
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

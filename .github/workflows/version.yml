@@ -1,0 +1,97 @@
+name: Auto Version
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types:
+      - completed
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Bump version and push tag
+        id: tag_version
+        uses: anothrNick/github-tag-action@1.71.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WITH_V: true
+          DEFAULT_BUMP: minor
+          TAG_PREFIX: v
+          PRERELEASE: false
+          MAJOR_STRING_TOKEN: "#major"
+          MINOR_STRING_TOKEN: "#minor" 
+          PATCH_STRING_TOKEN: "#patch"
+          NONE_STRING_TOKEN: "#none"
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version-file: 'go.mod'
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Generate mocks
+        run: make mocks
+
+      - name: Publish Go module
+        run: |
+          VERSION=${{ steps.tag_version.outputs.new_tag }}
+          echo "📦 Publishing Go module version: $VERSION"
+          
+          export GITHUB_REF_NAME=$VERSION
+          make release
+          
+          echo "✅ Module published: go get github.com/mfenderov/most-active-cookie@$VERSION"
+          echo "✅ CLI install: go install github.com/mfenderov/most-active-cookie/cmd/most-active-cookie@$VERSION"
+
+      - name: Build cross-platform binaries
+        run: |
+          VERSION=${{ steps.tag_version.outputs.new_tag }}
+          echo "🔨 Building cross-platform binaries version: $VERSION"
+          
+          mkdir -p build/release
+          
+          # Linux amd64
+          GOOS=linux GOARCH=amd64 go build -ldflags "-s -w -X main.version=$VERSION" -o build/release/most-active-cookie-linux-amd64 ./cmd/most-active-cookie
+          
+          # Linux arm64
+          GOOS=linux GOARCH=arm64 go build -ldflags "-s -w -X main.version=$VERSION" -o build/release/most-active-cookie-linux-arm64 ./cmd/most-active-cookie
+          
+          # macOS amd64
+          GOOS=darwin GOARCH=amd64 go build -ldflags "-s -w -X main.version=$VERSION" -o build/release/most-active-cookie-darwin-amd64 ./cmd/most-active-cookie
+          
+          # macOS arm64 (Apple Silicon)
+          GOOS=darwin GOARCH=arm64 go build -ldflags "-s -w -X main.version=$VERSION" -o build/release/most-active-cookie-darwin-arm64 ./cmd/most-active-cookie
+          
+          # Windows amd64
+          GOOS=windows GOARCH=amd64 go build -ldflags "-s -w -X main.version=$VERSION" -o build/release/most-active-cookie-windows-amd64.exe ./cmd/most-active-cookie
+          
+          # Create checksums
+          cd build/release && sha256sum * > checksums.txt
+          
+          echo "✅ Built $(ls build/release/ | wc -l) artifacts"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.tag_version.outputs.new_tag }}
+          files: |
+            build/release/*
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
