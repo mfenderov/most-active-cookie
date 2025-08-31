@@ -34,7 +34,7 @@ lint:
 
 ## test: Run unit tests (fast feedback)
 test-unit: mocks
-	go test -v -race ./src/cli/ ./src/cookie/ ./src/parser/
+	go test -v -race ./src/...
 
 test-integration:
 	go test -v ./integration-tests/...

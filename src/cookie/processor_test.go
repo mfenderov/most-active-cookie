@@ -1,9 +1,10 @@
-package cookie
+package cookie_test
 
 import (
 	"errors"
 	"testing"
 
+	"github.com/mfenderov/most-active-cookie/src/cookie"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -11,7 +12,7 @@ import (
 func TestProcessor_FindMostActiveCookies(t *testing.T) {
 	tests := []struct {
 		name           string
-		entries        []LogEntry
+		entries        []cookie.LogEntry
 		targetDate     string
 		expectedResult []string
 		expectError    bool
@@ -19,7 +20,7 @@ func TestProcessor_FindMostActiveCookies(t *testing.T) {
 	}{
 		{
 			name: "single most active cookie",
-			entries: []LogEntry{
+			entries: []cookie.LogEntry{
 				{Cookie: "A", Timestamp: "2018-12-09T14:19:00+00:00"},
 				{Cookie: "A", Timestamp: "2018-12-09T06:19:00+00:00"},
 				{Cookie: "B", Timestamp: "2018-12-09T10:13:00+00:00"},
@@ -29,7 +30,7 @@ func TestProcessor_FindMostActiveCookies(t *testing.T) {
 		},
 		{
 			name: "multiple most active cookies (tie)",
-			entries: []LogEntry{
+			entries: []cookie.LogEntry{
 				{Cookie: "A", Timestamp: "2018-12-09T14:19:00+00:00"},
 				{Cookie: "B", Timestamp: "2018-12-09T10:13:00+00:00"},
 				{Cookie: "C", Timestamp: "2018-12-09T07:25:00+00:00"},
@@ -39,7 +40,7 @@ func TestProcessor_FindMostActiveCookies(t *testing.T) {
 		},
 		{
 			name: "no entries for target date",
-			entries: []LogEntry{
+			entries: []cookie.LogEntry{
 				{Cookie: "A", Timestamp: "2018-12-08T14:19:00+00:00"},
 				{Cookie: "B", Timestamp: "2018-12-07T10:13:00+00:00"},
 			},
@@ -48,7 +49,7 @@ func TestProcessor_FindMostActiveCookies(t *testing.T) {
 		},
 		{
 			name: "entries from multiple dates, filter correctly",
-			entries: []LogEntry{
+			entries: []cookie.LogEntry{
 				{Cookie: "A", Timestamp: "2018-12-09T14:19:00+00:00"},
 				{Cookie: "A", Timestamp: "2018-12-09T06:19:00+00:00"},
 				{Cookie: "B", Timestamp: "2018-12-08T22:03:00+00:00"},
@@ -60,7 +61,7 @@ func TestProcessor_FindMostActiveCookies(t *testing.T) {
 		},
 		{
 			name: "timezone handling",
-			entries: []LogEntry{
+			entries: []cookie.LogEntry{
 				{Cookie: "A", Timestamp: "2018-12-09T14:19:00+00:00"},
 				{Cookie: "B", Timestamp: "2018-12-09T09:19:00-05:00"},
 			},
@@ -77,15 +78,15 @@ func TestProcessor_FindMostActiveCookies(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockParser := NewMockFileParser(t)
+			mockParser := cookie.NewMockFileParser(t)
 			if !tt.expectError || tt.errorContains != "invalid target date" {
-				mockParser.EXPECT().StreamFile("test.csv", mock.AnythingOfType("EntryProcessor")).Run(func(_ string, processor EntryProcessor) {
+				mockParser.EXPECT().StreamFile("test.csv", mock.AnythingOfType("cookie.EntryProcessor")).Run(func(_ string, processor cookie.EntryProcessor) {
 					for _, entry := range tt.entries {
 						processor(entry)
 					}
 				}).Return(nil)
 			}
-			processor := NewProcessor(mockParser)
+			processor := cookie.NewProcessor(mockParser)
 
 			cookies, err := processor.FindMostActiveCookies("test.csv", tt.targetDate)
 
@@ -104,9 +105,9 @@ func TestProcessor_FindMostActiveCookies(t *testing.T) {
 }
 
 func TestProcessor_FindMostActiveCookies_ParserError(t *testing.T) {
-	mockParser := NewMockFileParser(t)
-	mockParser.EXPECT().StreamFile("test.csv", mock.AnythingOfType("EntryProcessor")).Return(errors.New("parser error"))
-	processor := NewProcessor(mockParser)
+	mockParser := cookie.NewMockFileParser(t)
+	mockParser.EXPECT().StreamFile("test.csv", mock.AnythingOfType("cookie.EntryProcessor")).Return(errors.New("parser error"))
+	processor := cookie.NewProcessor(mockParser)
 
 	_, err := processor.FindMostActiveCookies("test.csv", "2018-12-09")
 

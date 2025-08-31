@@ -1,4 +1,4 @@
-package parser
+package parser_test
 
 import (
 	"errors"
@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/mfenderov/most-active-cookie/src/cookie"
+	"github.com/mfenderov/most-active-cookie/src/parser"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -148,14 +149,14 @@ café🍪μπισκότο,2018-12-09T14:19:00+00:00
 		},
 	}
 
-	parser := NewCSVParser()
+	csvParser := parser.NewCSVParser()
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			filename := createTempCSVFile(t, tt.csvContent)
 
 			var entries []cookie.LogEntry
-			err := parser.StreamFile(filename, func(entry cookie.LogEntry) error {
+			err := csvParser.StreamFile(filename, func(entry cookie.LogEntry) error {
 				entries = append(entries, entry)
 				return nil
 			})
@@ -163,7 +164,7 @@ café🍪μπισκότο,2018-12-09T14:19:00+00:00
 			if tt.expectError {
 				assert.Error(t, err, "expected error but got none")
 				if tt.errorContains != "" && err != nil {
-					assert.Contains(t, err.Error(), tt.errorContains, "error should contain expected substring")
+					assert.ErrorContains(t, err, tt.errorContains, "error should contain expected substring")
 				}
 				return
 			}
@@ -175,140 +176,27 @@ café🍪μπισκότο,2018-12-09T14:19:00+00:00
 }
 
 func TestCSVParser_StreamFile_NonExistentFile(t *testing.T) {
-	parser := NewCSVParser()
-	err := parser.StreamFile("nonexistent_file.csv", func(_ cookie.LogEntry) error {
+	csvParser := parser.NewCSVParser()
+	err := csvParser.StreamFile("nonexistent_file.csv", func(_ cookie.LogEntry) error {
 		return nil
 	})
 
 	assert.Error(t, err, "expected error for non-existent file")
-	assert.Contains(t, err.Error(), "failed to open file", "error should mention file opening failure")
+	assert.ErrorContains(t, err, "failed to open file", "error should mention file opening failure")
 }
 
 func TestCSVParser_StreamFile_ProcessorError(t *testing.T) {
 	validCSV := `cookie,timestamp
 AtY0laUfhglK3lC7,2018-12-09T14:19:00+00:00`
 
-	parser := NewCSVParser()
+	csvParser := parser.NewCSVParser()
 	filename := createTempCSVFile(t, validCSV)
 
 	processorError := errors.New("processor failed")
-	err := parser.StreamFile(filename, func(_ cookie.LogEntry) error {
+	err := csvParser.StreamFile(filename, func(_ cookie.LogEntry) error {
 		return processorError
 	})
 
 	assert.Error(t, err, "expected processor error to propagate")
-	assert.Contains(t, err.Error(), "processing error", "error should mention processing failure")
-}
-
-func TestCSVParser_ParseLine(t *testing.T) {
-	parser := NewCSVParser()
-
-	tests := []struct {
-		name           string
-		line           string
-		expectError    bool
-		expectedCookie string
-		errorContains  string
-	}{
-		{
-			name:           "valid line",
-			line:           "AtY0laUfhglK3lC7,2018-12-09T14:19:00+00:00",
-			expectError:    false,
-			expectedCookie: "AtY0laUfhglK3lC7",
-		},
-		{
-			name:          "empty cookie",
-			line:          ",2018-12-09T14:19:00+00:00",
-			expectError:   true,
-			errorContains: "empty cookie ID",
-		},
-		{
-			name:          "empty timestamp",
-			line:          "AtY0laUfhglK3lC7,",
-			expectError:   true,
-			errorContains: "empty timestamp",
-		},
-		{
-			name:          "invalid CSV format - too many columns",
-			line:          "AtY0laUfhglK3lC7,2018-12-09T14:19:00+00:00,extra",
-			expectError:   true,
-			errorContains: "invalid CSV format",
-		},
-		{
-			name:          "invalid CSV format - too few columns",
-			line:          "AtY0laUfhglK3lC7",
-			expectError:   true,
-			errorContains: "invalid CSV format",
-		},
-		{
-			name:          "invalid timestamp format",
-			line:          "AtY0laUfhglK3lC7,2018-12-09",
-			expectError:   true,
-			errorContains: "invalid timestamp format",
-		},
-		{
-			name:           "whitespace handling",
-			line:           " AtY0laUfhglK3lC7 , 2018-12-09T14:19:00+00:00 ",
-			expectError:    false,
-			expectedCookie: "AtY0laUfhglK3lC7",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			entry, err := parser.parseLine(tt.line)
-
-			if tt.expectError {
-				assert.Error(t, err, "expected error but got none")
-				if tt.errorContains != "" {
-					assert.Contains(t, err.Error(), tt.errorContains, "error should contain expected substring")
-				}
-				return
-			}
-
-			assert.NoError(t, err, "unexpected error")
-			assert.Equal(t, tt.expectedCookie, entry.Cookie, "cookie mismatch")
-		})
-	}
-}
-
-func TestIsValidHeader(t *testing.T) {
-	tests := []struct {
-		name     string
-		header   string
-		expected bool
-	}{
-		{
-			name:     "valid header",
-			header:   "cookie,timestamp",
-			expected: true,
-		},
-		{
-			name:     "valid header with case variations",
-			header:   "Cookie,Timestamp",
-			expected: true,
-		},
-		{
-			name:     "valid header with whitespace",
-			header:   " cookie,timestamp ",
-			expected: true,
-		},
-		{
-			name:     "invalid header",
-			header:   "invalid,header",
-			expected: false,
-		},
-		{
-			name:     "empty header",
-			header:   "",
-			expected: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := isValidHeader(tt.header)
-			assert.Equal(t, tt.expected, result, "header validation result mismatch")
-		})
-	}
+	assert.ErrorContains(t, err, "processing error", "error should mention processing failure")
 }
